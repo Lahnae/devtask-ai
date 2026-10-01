@@ -1,0 +1,4 @@
+:root { font-family: Inter, "Segoe UI", system-ui, sans-serif; color: #33333f; background: #fafafd; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+body { min-width: 320px; min-height: 100vh; margin: 0; }
+button, a { -webkit-tap-highlight-color: transparent; }
