@@ -34,7 +34,9 @@ npm run dev
 Run the API in a second terminal from the repository root:
 
 ```powershell
-dotnet run --project backend/DevTask.Api
+dotnet run --launch-profile https --project backend/DevTask.Api
 ```
 
-The frontend dashboard currently uses sample data. The API exposes a health check at `/api/health` and project endpoints at `/api/projects`; those endpoints need a configured SQL Server instance and the EF Core schema. Local development is set to SQL Server LocalDB. Production connection strings belong in Azure App Service configuration and must never be committed.
+The frontend loads workspace data from the API. The API exposes `/api/health`, project CRUD at `/api/projects`, and task operations under `/api/projects/{projectId}/tasks`. Data operations need SQL Server LocalDB and the EF Core schema initialized. Production connection strings belong in Azure App Service configuration and must never be committed.
+
+V1 supports creating, listing, and deleting projects; adding and deleting tasks; changing task status; and showing project progress. The dashboard reads and writes through the API rather than local sample data.
