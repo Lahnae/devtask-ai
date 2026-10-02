@@ -7,11 +7,12 @@ DevTask AI is a project and task management web application. The current V1 impl
 - Frontend: React, TypeScript, and Vite.
 - Backend: ASP.NET Core Web API on .NET 10.
 - Data access: Entity Framework Core 10 with SQL Server provider.
+- Access control: one configured user signs in through the API; the API requires a short-lived bearer token for all data endpoints.
 - CORS origins are configured per environment; local development allows `http://localhost:5173`.
 - Local database: SQL Server LocalDB, using the `DevTaskAi` instance and `DevTaskAi` database.
 - Database schema: the `InitialCreate` migration creates `Projects` and `Tasks` and is applied by the local database setup below.
 - Implemented: create, list, and delete projects; create and delete tasks; update task status; show project task counts and progress.
-- Azure deployment is not configured yet. The target is Azure SQL, Azure Static Web Apps for the frontend, and Azure App Service F1 for the API.
+- Azure deployment is provisioned for Azure SQL, Azure Static Web Apps, and Azure App Service F1. The GitHub Actions deployment workflow is manual-only from `main`.
 
 The `dev` branch is the integration branch. Changes are prepared there before they are merged into `main`.
 
@@ -64,6 +65,12 @@ The command is safe to rerun; EF Core applies only migrations that are not alrea
 
 ### 3. Start the API
 
+Before the first run, set up local authentication secrets once. The script asks for a new, unique password without echoing it, hashes it, saves the local values outside the repository with .NET user-secrets, and creates an ignored settings file for the Azure portal:
+
+```powershell
+.\backend\DevTask.Api\Initialize-LocalAuth.ps1
+```
+
 Open a PowerShell terminal at the repository root and run:
 
 ```powershell
@@ -82,7 +89,7 @@ npm ci
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173). Keep both terminals running while using the app. Create a project from **New project**, then add tasks within it.
+Open [http://localhost:5173](http://localhost:5173), then sign in with username `TestiSeppo` and the password entered in the setup script. Keep both terminals running while using the app. Create a project from **New project**, then add tasks within it.
 
 If PowerShell selects an older Node.js installation, make sure `node --version` reports 22.12 or newer before starting Vite. On the original development machine, Node.js 24 is installed at `C:\Program Files\nodejs`; prepend it to the current terminal's PATH if needed:
 
@@ -110,7 +117,7 @@ Azure resources for V1 are provisioned in **West Europe** under resource group `
 - API App Service: `devtask`, at `https://devtask-hubmbka5d8fybnh9.westeurope-01.azurewebsites.net`. Its system-assigned managed identity is enabled and has database read/write access.
 - Azure Static Web App: `devtask-ai`, at `https://yellow-coast-0f0d5bd03.1.azurestaticapps.net`.
 
-The API App Service settings are `ConnectionStrings__DefaultConnection` using the App Service managed identity and `Cors__AllowedOrigins__0` set to the Static Web App origin. Do not store a database password in the connection string.
+The API App Service settings are `ConnectionStrings__DefaultConnection` using the App Service managed identity, `Cors__AllowedOrigins__0` set to the Static Web App origin, and authentication settings described below. Do not store a database password in the connection string.
 
 `.github/workflows/deploy-azure.yml` is manual-only and deploys both applications from `main`; it does not run on pushes. The workflow uses GitHub OIDC for App Service and the Static Web Apps deployment token for the frontend.
 
@@ -121,6 +128,9 @@ Before the first deployment:
    - `AZURE_WEBAPP_NAME` = `devtask`
    - `VITE_API_BASE_URL` = `https://devtask-hubmbka5d8fybnh9.westeurope-01.azurewebsites.net`
 3. Create these repository secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, and `AZURE_STATIC_WEB_APPS_API_TOKEN`. Get the last value from the Static Web App's deployment token page; do not commit or share it.
-4. Merge the open deployment PR into `main`. Then select **Actions → Deploy to Azure → Run workflow** and choose `main`.
+4. Authentication settings must be present in the App Service before deploying the login-enabled API. Run `backend\DevTask.Api\Initialize-LocalAuth.ps1` locally and copy the three values from its ignored `backend\DevTask.Api\auth-settings.local.json` into the `devtask` App Service **Configuration → Environment variables**. Use these App Service setting names: `Auth__Username`, `Auth__PasswordHash`, and `Auth__JwtSigningKey`. Save the settings and restart the App Service. Never commit or paste the generated file into GitHub.
+5. Merge the authentication change into `main`. Then select **Actions → Deploy to Azure → Run workflow** and choose `main`. After deployment, the frontend shows a sign-in screen and the API rejects requests without a valid token before they can access Azure SQL.
+
+The login endpoint is rate-limited to five attempts per minute per client IP. Access tokens expire after eight hours and are kept in the browser session only. Passwords are stored as salted PBKDF2 hashes; the JWT signing key and hash are kept in .NET user-secrets locally and Azure App Service settings in production.
 
 EF Core migrations are not run automatically by the deployment workflow. Review and apply later migration scripts to Azure SQL before deploying code that depends on them.

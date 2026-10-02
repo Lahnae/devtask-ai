@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { api } from './api'
+import { api, authSession } from './api'
+import LoginScreen from './LoginScreen'
 import type { Project, ProjectInput, TaskInput, TaskItem, TaskPriority, TaskStatus } from './types'
 import './App.css'
 
@@ -14,6 +15,7 @@ const projectColor = (id: number) => colors[id % colors.length]
 const friendlyError = (error: unknown) => error instanceof Error ? error.message : 'Something went wrong.'
 
 function App() {
+  const [authenticated, setAuthenticated] = useState(() => authSession.isActive())
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<TaskItem[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
@@ -38,7 +40,12 @@ function App() {
     }
   }, [])
 
-  useEffect(() => { void loadWorkspace() }, [loadWorkspace])
+  useEffect(() => { if (authenticated) void loadWorkspace() }, [loadWorkspace, authenticated])
+  useEffect(() => {
+    const onUnauthorized = () => setAuthenticated(false)
+    window.addEventListener('devtask:unauthorized', onUnauthorized)
+    return () => window.removeEventListener('devtask:unauthorized', onUnauthorized)
+  }, [])
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null
   const projectTasks = useMemo(
@@ -48,6 +55,10 @@ function App() {
   const openTaskCount = tasks.filter((task) => task.status !== 'Done').length
   const completedTaskCount = tasks.filter((task) => task.status === 'Done').length
   const recentTasks = [...tasks].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5)
+
+  if (!authenticated) {
+    return <LoginScreen onLogin={() => { setError(''); setAuthenticated(true) }} />
+  }
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -154,7 +165,7 @@ function App() {
           {projects.map((project) => <button className={`project-nav ${selectedProjectId === project.id ? 'selected' : ''}`} key={project.id} onClick={() => setSelectedProjectId(project.id)}><span className={`dot ${projectColor(project.id)}`} />{project.name}</button>)}
           {!loading && projects.length === 0 && <span className="sidebar-empty">No projects yet</span>}
         </div>
-        <div className="sidebar-bottom"><a className="nav-link" href="#settings"><span>⚙</span>Settings</a><div className="profile"><span className="profile-avatar">ME</span><span><b>Workspace member</b><small>Free plan</small></span></div></div>
+        <div className="sidebar-bottom"><a className="nav-link" href="#settings"><span>⚙</span>Settings</a><div className="profile"><span className="profile-avatar">ME</span><span><b>Workspace member</b><small>Free plan</small></span><button className="logout-button" onClick={() => { authSession.clear(); setAuthenticated(false) }}>Log out</button></div></div>
       </aside>
 
       <main className="main-content" id="overview">
