@@ -77,6 +77,39 @@ public sealed class ProjectsController(AppDbContext dbContext) : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = project.Id }, response);
     }
 
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<ProjectResponse>> Update(
+        int id,
+        UpdateProjectRequest request,
+        CancellationToken cancellationToken)
+    {
+        var project = await dbContext.Projects.FindAsync([id], cancellationToken);
+        if (project is null)
+        {
+            return NotFound();
+        }
+
+        project.Name = request.Name.Trim();
+        project.Description = request.Description?.Trim();
+        project.UpdatedAt = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var response = await dbContext.Projects
+            .AsNoTracking()
+            .Where(updatedProject => updatedProject.Id == id)
+            .Select(updatedProject => new ProjectResponse(
+                updatedProject.Id,
+                updatedProject.Name,
+                updatedProject.Description,
+                updatedProject.CreatedAt,
+                updatedProject.UpdatedAt,
+                updatedProject.Tasks.Count,
+                updatedProject.Tasks.Count(task => task.Status == TaskStatus.Done)))
+            .SingleAsync(cancellationToken);
+
+        return Ok(response);
+    }
+
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken cancellationToken)
     {
