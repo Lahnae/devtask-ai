@@ -7,6 +7,7 @@ DevTask AI is a project and task management web application. The current V1 impl
 - Frontend: React, TypeScript, and Vite.
 - Backend: ASP.NET Core Web API on .NET 10.
 - Data access: Entity Framework Core 10 with SQL Server provider.
+- CORS origins are configured per environment; local development allows `http://localhost:5173`.
 - Local database: SQL Server LocalDB, using the `DevTaskAi` instance and `DevTaskAi` database.
 - Database schema: the `InitialCreate` migration creates `Projects` and `Tasks` and is applied by the local database setup below.
 - Implemented: create, list, and delete projects; create and delete tasks; update task status; show project task counts and progress.
@@ -95,6 +96,12 @@ If the API reports that the LocalDB instance does not exist, check `SqlLocalDB.e
 
 Some NVMe drives report a physical performance sector size greater than 4 KB, which SQL Server does not support. Check with `fsutil fsinfo sectorinfo C:`. If SQL Server fails to start and the drive reports a value over 4096, follow Microsoft's [SQL Server disk sector size troubleshooting guide](https://learn.microsoft.com/en-us/troubleshoot/sql/database-engine/database-file-operations/troubleshoot-os-4kb-disk-sector-size).
 
+## GitHub Actions
+
+The CI workflow builds the frontend and API on pushes to `dev` or `main` and on pull requests targeting either branch. It uses Node.js 24 and the .NET 10 SDK. These checks build the projects; they do not run automated tests.
+
 ## Azure deployment
 
-Azure resources and deployment pipelines have not been created yet. The planned production architecture is Azure SQL, Azure Static Web Apps for the frontend, and Azure App Service F1 for the API. Configure production connection strings in App Service settings; never commit production secrets.
+Azure resources and deployment pipelines have not been created yet. The planned production architecture is Azure SQL, Azure Static Web Apps for the frontend, and Azure App Service F1 for the API.
+
+For the API App Service, set `ConnectionStrings__DefaultConnection` to the Azure SQL connection string and `Cors__AllowedOrigins__0` to the deployed frontend origin (for example, the Static Web Apps URL). For a second allowed origin, use `Cors__AllowedOrigins__1`. The frontend accepts `VITE_API_BASE_URL` at build time; set it to the API base URL in the deployment workflow when Azure publishing is added. Keep production connection strings and secrets in GitHub Actions secrets or Azure App Service settings; never commit them.
