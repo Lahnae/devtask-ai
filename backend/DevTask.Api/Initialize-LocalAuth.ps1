@@ -3,15 +3,19 @@ $project = Join-Path $PSScriptRoot 'DevTask.Api.csproj'
 
 $securePassword = Read-Host 'Enter a new, unique DevTask AI password' -AsSecureString
 $passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-$salt = New-Object byte[] 16
-$jwtKey = New-Object byte[] 32
-$rng.GetBytes($salt)
-$rng.GetBytes($jwtKey)
+$rng = $null
+$salt = $null
+$jwtKey = $null
 $derivedBytes = $null
 $derive = $null
 
 try {
+    $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+    $salt = New-Object byte[] 16
+    $jwtKey = New-Object byte[] 32
+    $rng.GetBytes($salt)
+    $rng.GetBytes($jwtKey)
+
     $password = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
     $derive = [Security.Cryptography.Rfc2898DeriveBytes]::new($password, $salt, 600000, [Security.Cryptography.HashAlgorithmName]::SHA256)
     $derivedBytes = $derive.GetBytes(32)
@@ -32,11 +36,12 @@ try {
     Write-Host 'Azure settings were written to auth-settings.local.json (ignored by Git). Copy them to the API App Service Configuration > Environment variables.'
 }
 finally {
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+    if ($passwordPointer) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer) }
     if ($derive) { $derive.Dispose() }
-    $rng.Dispose()
+    if ($rng) { $rng.Dispose() }
     if ($salt) { [Array]::Clear($salt, 0, $salt.Length) }
     if ($jwtKey) { [Array]::Clear($jwtKey, 0, $jwtKey.Length) }
     if ($derivedBytes) { [Array]::Clear($derivedBytes, 0, $derivedBytes.Length) }
     $password = $null
+    if ($securePassword) { $securePassword.Dispose() }
 }
