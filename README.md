@@ -102,6 +102,13 @@ The CI workflow builds the frontend and API on pushes to `dev` or `main` and on 
 
 ## Azure deployment
 
-Azure resources and deployment pipelines have not been created yet. The planned production architecture is Azure SQL, Azure Static Web Apps for the frontend, and Azure App Service F1 for the API.
+Azure resources are not provisioned yet. The planned production architecture is Azure SQL, Azure Static Web Apps for the frontend, and Azure App Service F1 for the API. `.github/workflows/deploy-azure.yml` is a manual-only workflow that deploys both applications from `main`; it does not run on pushes. The workflow uses GitHub OIDC for Azure App Service and the deployment token for Static Web Apps.
 
-For the API App Service, set `ConnectionStrings__DefaultConnection` to the Azure SQL connection string and `Cors__AllowedOrigins__0` to the deployed frontend origin (for example, the Static Web Apps URL). For a second allowed origin, use `Cors__AllowedOrigins__1`. The frontend accepts `VITE_API_BASE_URL` at build time; set it to the API base URL in the deployment workflow when Azure publishing is added. Keep production connection strings and secrets in GitHub Actions secrets or Azure App Service settings; never commit them.
+Before using it:
+
+1. Provision the Azure SQL database, App Service, and Static Web App, and configure the App Service runtime for .NET 10.
+2. Configure GitHub repository secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, and `AZURE_STATIC_WEB_APPS_API_TOKEN`. Configure repository variable `AZURE_WEBAPP_NAME` with the App Service name and `VITE_API_BASE_URL` with the API base URL (for example, `https://<app-name>.azurewebsites.net`). Set up a federated credential in Azure for this repository's `main` branch.
+3. Set the App Service settings `ConnectionStrings__DefaultConnection` to the Azure SQL connection string and `Cors__AllowedOrigins__0` to the Static Web App URL. Keep credentials in Azure settings or GitHub secrets; never commit them.
+4. Merge the prepared workflow into `main`, then select **Actions → Deploy to Azure → Run workflow** and choose `main`.
+
+The frontend workflow uses `VITE_API_BASE_URL` at build time. The API deployment does not apply EF Core migrations automatically yet; apply the migration to the Azure SQL database before first use.
