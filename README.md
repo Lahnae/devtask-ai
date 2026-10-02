@@ -102,13 +102,25 @@ The CI workflow builds the frontend and API on pushes to `dev` or `main` and on 
 
 ## Azure deployment
 
-Azure resources are not provisioned yet. The planned production architecture is Azure SQL, Azure Static Web Apps for the frontend, and Azure App Service F1 for the API. `.github/workflows/deploy-azure.yml` is a manual-only workflow that deploys both applications from `main`; it does not run on pushes. The workflow uses GitHub OIDC for Azure App Service and the deployment token for Static Web Apps.
+Azure resources for V1 are provisioned in **West Europe** under resource group `DevTaskAi`:
 
-Before using it:
+- Azure SQL server: `devtask-ai.database.windows.net`.
+- Azure SQL database: `devtask-ai-free-sql-db`, configured for Microsoft Entra-only authentication. The `InitialCreate` EF Core migration has been applied.
+- App Service plan: `devtask-ai-api`.
+- API App Service: `devtask`, at `https://devtask-hubmbka5d8fybnh9.westeurope-01.azurewebsites.net`. Its system-assigned managed identity is enabled and has database read/write access.
+- Azure Static Web App: `devtask-ai`, at `https://yellow-coast-0f0d5bd03.1.azurestaticapps.net`.
 
-1. Provision the Azure SQL database, App Service, and Static Web App, and configure the App Service runtime for .NET 10.
-2. Configure GitHub repository secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, and `AZURE_STATIC_WEB_APPS_API_TOKEN`. Configure repository variable `AZURE_WEBAPP_NAME` with the App Service name and `VITE_API_BASE_URL` with the API base URL (for example, `https://<app-name>.azurewebsites.net`). Set up a federated credential in Azure for this repository's `main` branch.
-3. Set the App Service settings `ConnectionStrings__DefaultConnection` to the Azure SQL connection string and `Cors__AllowedOrigins__0` to the Static Web App URL. Keep credentials in Azure settings or GitHub secrets; never commit them.
-4. Merge the prepared workflow into `main`, then select **Actions → Deploy to Azure → Run workflow** and choose `main`.
+The API App Service settings are `ConnectionStrings__DefaultConnection` using the App Service managed identity and `Cors__AllowedOrigins__0` set to the Static Web App origin. Do not store a database password in the connection string.
 
-The frontend workflow uses `VITE_API_BASE_URL` at build time. The API deployment does not apply EF Core migrations automatically yet; apply the migration to the Azure SQL database before first use.
+`.github/workflows/deploy-azure.yml` is manual-only and deploys both applications from `main`; it does not run on pushes. The workflow uses GitHub OIDC for App Service and the Static Web Apps deployment token for the frontend.
+
+Before the first deployment:
+
+1. In Microsoft Entra ID, create an app registration for GitHub deployment and add a federated credential for repository `Lahnae/devtask-ai`, branch `main` (`repo:Lahnae/devtask-ai:ref:refs/heads/main`). Grant its service principal the **Website Contributor** role on the `devtask` App Service.
+2. In GitHub **Settings → Secrets and variables → Actions**, create these repository variables:
+   - `AZURE_WEBAPP_NAME` = `devtask`
+   - `VITE_API_BASE_URL` = `https://devtask-hubmbka5d8fybnh9.westeurope-01.azurewebsites.net`
+3. Create these repository secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, and `AZURE_STATIC_WEB_APPS_API_TOKEN`. Get the last value from the Static Web App's deployment token page; do not commit or share it.
+4. Merge the open deployment PR into `main`. Then select **Actions → Deploy to Azure → Run workflow** and choose `main`.
+
+EF Core migrations are not run automatically by the deployment workflow. Review and apply later migration scripts to Azure SQL before deploying code that depends on them.
